@@ -170,6 +170,11 @@ button {
     padding: 12px 22px;
     transition: background-color 0.3s, color 0.3s, transform 0.2s, box-shadow 0.3s;
 }
+button:disabled {
+    background-color: var(--cor-texto-secundario);
+    cursor: not-allowed;
+    box-shadow: none;
+}
 button:active { transform: scale(0.98); }
 .btn-secondary { background-color: var(--cor-card); border: 1px solid var(--cor-borda); color: var(--cor-texto-principal); }
 .btn-reset { background-color: var(--cor-reset); }
@@ -259,7 +264,6 @@ body.dark-theme .icon-moon { color: var(--cor-destaque); }
 .item-body p { font-size: 13px; margin: 5px 0; }
 .item-body p strong { color: var(--cor-texto-secundario); }
 
-/* Estilos do botão de excluir (NOVO) */
 .item-actions .btn-delete:hover {
     color: var(--cor-reset);
     box-shadow: 0 0 8px var(--cor-reset);
@@ -326,16 +330,101 @@ body.dark-theme .icon-moon { color: var(--cor-destaque); }
     .content { padding: 70px 15px 15px 15px; }
 }
 
-.logo-dark {
-    display: none;
-}
-.logo-light {
-    display: block;
+.logo-dark { display: none; }
+.logo-light { display: block; }
+body.dark-theme .logo-light { display: none; }
+body.dark-theme .logo-dark { display: block; }
+
+.document-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
 }
 
-body.dark-theme .logo-light {
-    display: none;
+#drop-zone {
+    border: 2px dashed var(--cor-borda);
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.3s, background-color 0.3s;
+    background-color: var(--cor-input-fundo);
 }
-body.dark-theme .logo-dark {
-    display: block;
+#drop-zone.drag-over {
+    border-color: var(--cor-destaque);
+    background-color: rgba(59, 130, 246, 0.05);
+}
+.drop-zone-text svg {
+    color: var(--cor-destaque);
+    margin-bottom: 10px;
+}
+.drop-zone-text p {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--cor-texto-principal);
+}
+.drop-zone-text span {
+    font-size: 12px;
+    color: var(--cor-texto-secundario);
+}
+#file-list { margin-top: 15px; }
+.file-item {
+    background-color: var(--cor-fundo);
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+.file-item span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 15px;
+}
+.file-item button {
+    background: none;
+    border: none;
+    color: var(--cor-reset);
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 5px;
+    margin: 0;
+    box-shadow: none;
+}
+.file-item button:hover {
+    color: white;
+    background-color: var(--cor-reset);
+    border-radius: 50%;
+}
+.anexos-view {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--cor-borda);
+}
+.anexos-view strong {
+    color: var(--cor-texto-principal);
+}
+.anexos-view ul {
+    list-style-type: square;
+    padding-left: 20px;
+    margin: 5px 0 0 0;
+}
+.anexos-view li {
+    font-size: 13px;
+    color: var(--cor-texto-secundario);
+    margin-bottom: 4px;
+}
+.anexos-view a {
+    color: var(--cor-destaque);
+    text-decoration: none;
+}
+.anexos-view a:hover {
+    text-decoration: underline;
 }
