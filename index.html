@@ -30,6 +30,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
                     Ficha de EPI
                 </a>
+                <a href="#" onclick="showPage('clientes')" role="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-3-3.87"></path><path d="M4 21v-2a4 4 0 0 1 3-3.87"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    Ficha de Clientes
+                </a>
                 <a href="#" onclick="showPage('obras')" role="button">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg> Obras
                 </a>
@@ -69,11 +73,45 @@
                 </div>
             </div>
 
+            <div id="clientes-page" class="page-content">
+                <div class="card">
+                    <h2 id="cliente-form-title">Ficha de Clientes</h2>
+                    <div class="form-group"> <label for="cliente-nome">Nome do Cliente</label> <input type="text" id="cliente-nome" class="capitalize-input"> </div>
+                    <div class="form-group">
+                        <label for="cliente-documento">Documento</label>
+                        <div class="documento-input-group">
+                            <select id="cliente-documento-tipo">
+                                <option value="cpf">CPF</option>
+                                <option value="cnpj">CNPJ</option>
+                            </select>
+                            <input type="text" id="cliente-documento" placeholder="000.000.000-00">
+                        </div>
+                    </div>
+                    <div class="form-group"> <label for="cliente-telefone">Telefone</label> <input type="tel" id="cliente-telefone" placeholder="(00) 00000-0000"> </div>
+                    <div class="form-group"> <label for="cliente-email">E-mail</label> <input type="email" id="cliente-email" placeholder="contato@empresa.com"> </div>
+                    <div class="form-group"> <label for="cliente-endereco">Endereço</label> <textarea id="cliente-endereco" rows="3" class="capitalize-input"></textarea> </div>
+                    <div class="btn-group"> <button id="btn-salvar-cliente" onclick="salvarCliente()">Cadastrar Cliente</button> <button class="btn-secondary" onclick="toggleView('Clientes')">Ver Clientes Cadastrados</button> </div>
+                    <div id="clientes-view-container" class="view-container" style="display:none;">
+                        <div class="search-bar form-group">
+                            <label for="busca-clientes">Buscar Cliente</label>
+                            <input type="text" id="busca-clientes" onkeyup="atualizarVisualizacao('Clientes')" placeholder="Digite o nome para filtrar..." class="capitalize-input">
+                        </div>
+                        <div id="clientes-cadastrados-view" class="cadastros-view"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="obras-page" class="page-content">
                  <div class="card">
                     <h2 id="obra-form-title">Cadastro de Obra</h2>
                     <div class="form-group"> <label for="desc-obra">Descrição da Obra</label> <input type="text" id="desc-obra" class="capitalize-input"> </div>
                     <div class="form-group"> <label for="data-entrega-obra">Data da entrega da obra</label> <input type="date" id="data-entrega-obra"> </div>
+                    <div class="form-group">
+                        <label for="obra-cliente">Atribuir ao Cliente</label>
+                        <select id="obra-cliente">
+                            <option value="">Selecione um cliente...</option>
+                        </select>
+                    </div>
                     <div class="sistemas-section">
                         <h3>Sistemas</h3>
                         <div id="sistemas-list"></div>
@@ -188,12 +226,53 @@
     // REMOVIDO: const storage = getStorage(app);
 
     const ARQUIVO_FICHA_EPI = "fichas_epi";
+    const ARQUIVO_CLIENTE = "clientes";
     const ARQUIVO_OBRA = "obras";
     let modoEdicao = { ativo: false, tipo: null, id: null };
     let itemNotificacaoAtual = null;
     let newFiles = [];
     let existingFiles = [];
     let filesToDelete = [];
+    let documentoTipoSelect;
+    let documentoInput;
+    let clientesCache = [];
+
+    function obterTelefoneInternacional(cliente) {
+        if (!cliente) return '';
+        return cliente.telefone_internacional || prepararNumeroParaWhatsApp(cliente.telefone) || '';
+    }
+
+    async function atualizarOpcoesClientes() {
+        const select = getInput('obra-cliente');
+        if (!select) return;
+
+        const valorAtual = select.value;
+        select.innerHTML = '<option value="">Selecione um cliente...</option>';
+
+        try {
+            const q = query(collection(db, ARQUIVO_CLIENTE), orderBy('nome'));
+            const snapshot = await getDocs(q);
+            clientesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).map(cliente => ({
+                ...cliente,
+                telefone_internacional: obterTelefoneInternacional(cliente)
+            }));
+
+            clientesCache.forEach(cliente => {
+                const option = document.createElement('option');
+                option.value = cliente.id;
+                const telefone = cliente.telefone ? ` - ${cliente.telefone}` : '';
+                option.textContent = `${cliente.nome}${telefone}`;
+                select.appendChild(option);
+            });
+
+            if (valorAtual && clientesCache.some(cliente => cliente.id === valorAtual)) {
+                select.value = valorAtual;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar clientes:', error);
+            showNotification('Erro ao carregar a lista de clientes para atribuição.', 'error');
+        }
+    }
     
     function showNotification(message, type = 'info') {
         const container = document.getElementById('notification-container');
@@ -225,6 +304,141 @@
         }
     }
 
+    function limparNumero(valor) {
+        return valor.replace(/\D/g, '');
+    }
+
+    function prepararNumeroParaWhatsApp(telefone) {
+        if (!telefone) return null;
+        const numeros = limparNumero(telefone);
+        if (!numeros) return null;
+        if (numeros.startsWith('55')) return numeros;
+        if (numeros.length === 10 || numeros.length === 11) return `55${numeros}`;
+        return numeros;
+    }
+
+    function isSequenciaRepetida(valor) {
+        return (/^(\d)\1+$/).test(valor);
+    }
+
+    function validarCPF(cpf) {
+        if (!cpf || cpf.length !== 11 || isSequenciaRepetida(cpf)) return false;
+
+        let soma = 0;
+        for (let i = 0; i < 9; i++) {
+            soma += parseInt(cpf.charAt(i), 10) * (10 - i);
+        }
+        let resto = (soma * 10) % 11;
+        if (resto === 10) resto = 0;
+        if (resto !== parseInt(cpf.charAt(9), 10)) return false;
+
+        soma = 0;
+        for (let i = 0; i < 10; i++) {
+            soma += parseInt(cpf.charAt(i), 10) * (11 - i);
+        }
+        resto = (soma * 10) % 11;
+        if (resto === 10) resto = 0;
+        return resto === parseInt(cpf.charAt(10), 10);
+    }
+
+    function validarCNPJ(cnpj) {
+        if (!cnpj || cnpj.length !== 14 || isSequenciaRepetida(cnpj)) return false;
+
+        const calcularDigito = (base) => {
+            let soma = 0;
+            let peso = 2;
+            for (let i = base.length - 1; i >= 0; i--) {
+                soma += parseInt(base.charAt(i), 10) * peso;
+                peso = peso === 9 ? 2 : peso + 1;
+            }
+            const resto = soma % 11;
+            return resto < 2 ? 0 : 11 - resto;
+        };
+
+        const base = cnpj.slice(0, 12);
+        const digito1 = calcularDigito(base);
+        const digito2 = calcularDigito(base + digito1);
+
+        return digito1 === parseInt(cnpj.charAt(12), 10) && digito2 === parseInt(cnpj.charAt(13), 10);
+    }
+
+    function obterNomeTipoDocumento(tipo) {
+        return tipo === 'cnpj' ? 'CNPJ' : 'CPF';
+    }
+
+    function inferirTipoDocumento(documento) {
+        const numeros = limparNumero(documento || '');
+        return numeros.length > 11 ? 'cnpj' : 'cpf';
+    }
+
+    function aplicarMascaraDocumento(valor, tipo) {
+        const numeros = limparNumero(valor).slice(0, tipo === 'cnpj' ? 14 : 11);
+        if (!numeros) return '';
+
+        if (tipo === 'cnpj') {
+            const parte1 = numeros.slice(0, 2);
+            const parte2 = numeros.slice(2, 5);
+            const parte3 = numeros.slice(5, 8);
+            const parte4 = numeros.slice(8, 12);
+            const parte5 = numeros.slice(12, 14);
+            let resultado = parte1;
+            if (parte2) resultado += `.${parte2}`;
+            if (parte3) resultado += `.${parte3}`;
+            if (parte4) resultado += `/${parte4}`;
+            if (parte5) resultado += `-${parte5}`;
+            return resultado;
+        }
+
+        const parte1 = numeros.slice(0, 3);
+        const parte2 = numeros.slice(3, 6);
+        const parte3 = numeros.slice(6, 9);
+        const parte4 = numeros.slice(9, 11);
+        let resultado = parte1;
+        if (parte2) resultado += `.${parte2}`;
+        if (parte3) resultado += `.${parte3}`;
+        if (parte4) resultado += `-${parte4}`;
+        return resultado;
+    }
+
+    function obterPlaceholderDocumento(tipo) {
+        return tipo === 'cnpj' ? '00.000.000/0000-00' : '000.000.000-00';
+    }
+
+    function prepararCampoDocumento(tipo = 'cpf', valor = '') {
+        if (!documentoTipoSelect || !documentoInput) return;
+        const tipoNormalizado = tipo === 'cnpj' ? 'cnpj' : 'cpf';
+        documentoTipoSelect.value = tipoNormalizado;
+        documentoInput.placeholder = obterPlaceholderDocumento(tipoNormalizado);
+        documentoInput.value = aplicarMascaraDocumento(valor, tipoNormalizado);
+    }
+
+    function formatarDocumentoParaExibicao(documento, tipo) {
+        if (!documento) return '';
+        const tipoDeterminado = tipo || inferirTipoDocumento(documento);
+        return aplicarMascaraDocumento(documento, tipoDeterminado);
+    }
+
+    function validarDocumento(documento, tipo) {
+        const tipoNormalizado = tipo === 'cnpj' ? 'cnpj' : tipo === 'cpf' ? 'cpf' : null;
+        if (!tipoNormalizado) {
+            throw new Error('Selecione um tipo de documento válido.');
+        }
+
+        const numeroLimpo = limparNumero(documento);
+
+        if (tipoNormalizado === 'cpf') {
+            if (numeroLimpo.length !== 11 || !validarCPF(numeroLimpo)) {
+                throw new Error('CPF inválido.');
+            }
+            return numeroLimpo;
+        }
+
+        if (numeroLimpo.length !== 14 || !validarCNPJ(numeroLimpo)) {
+            throw new Error('CNPJ inválido.');
+        }
+        return numeroLimpo;
+    }
+
     async function enviarConfirmacaoPorEmail(action, details) {
         try {
             const response = await fetch('/.netlify/functions/send-confirmation', {
@@ -240,10 +454,53 @@
         }
     }
 
+    async function notificarCadastroObra(cliente, obra) {
+        const telefoneNormalizado = obterTelefoneInternacional(cliente);
+        if (!telefoneNormalizado) return;
+
+        try {
+            const response = await fetch('/.netlify/functions/send-whatsapp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clienteNome: cliente.nome,
+                    clienteTelefone: telefoneNormalizado,
+                    obraDescricao: obra.descricao,
+                    dataEntrega: obra.data_entrega_obra,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(errorBody || 'Resposta inválida da função.');
+            }
+        } catch (error) {
+            console.error('Erro ao notificar cliente da nova obra:', error);
+            showNotification('Obra cadastrada, mas não foi possível enviar mensagem ao cliente.', 'warning');
+        }
+    }
+
     async function excluirItem(tipo, id, descricao) {
-        const collectionName = tipo === 'FichasEPI' ? ARQUIVO_FICHA_EPI : ARQUIVO_OBRA;
-        const nomeItem = tipo === 'FichasEPI' ? 'Ficha de EPI' : 'Obra';
-        
+        let collectionName;
+        let nomeItem;
+
+        switch (tipo) {
+            case 'FichasEPI':
+                collectionName = ARQUIVO_FICHA_EPI;
+                nomeItem = 'Ficha de EPI';
+                break;
+            case 'Obras':
+                collectionName = ARQUIVO_OBRA;
+                nomeItem = 'Obra';
+                break;
+            case 'Clientes':
+                collectionName = ARQUIVO_CLIENTE;
+                nomeItem = 'Cliente';
+                break;
+            default:
+                return;
+        }
+
         if (confirm(`Tem certeza que deseja excluir ${nomeItem}: "${descricao}"?`)) {
             try {
                 await deleteDoc(doc(db, collectionName, id));
@@ -327,6 +584,49 @@
         }
     }
 
+    async function salvarCliente() {
+        try {
+            const tipoDocumento = getInput('cliente-documento-tipo').value;
+            const documentoValor = getInput('cliente-documento').value.trim();
+
+            const documentoValidado = validarDocumento(documentoValor, tipoDocumento);
+            prepararCampoDocumento(tipoDocumento, documentoValidado);
+
+            const cliente = {
+                nome: getInput('cliente-nome').value.trim(),
+                documento: documentoValidado,
+                tipo_documento: tipoDocumento,
+                telefone: getInput('cliente-telefone').value.trim(),
+                telefone_internacional: '',
+                email: getInput('cliente-email').value.trim(),
+                endereco: getInput('cliente-endereco').value.trim()
+            };
+
+            const telefoneNormalizado = prepararNumeroParaWhatsApp(cliente.telefone);
+            if (telefoneNormalizado) {
+                cliente.telefone_internacional = telefoneNormalizado;
+            }
+
+            if (!cliente.nome) throw new Error("O nome do cliente é obrigatório.");
+
+            const collectionRef = collection(db, ARQUIVO_CLIENTE);
+            if (modoEdicao.ativo && modoEdicao.tipo === 'Clientes') {
+                const docRef = doc(db, ARQUIVO_CLIENTE, modoEdicao.id);
+                await updateDoc(docRef, cliente);
+                showNotification("Cliente atualizado com sucesso!", 'success');
+            } else {
+                await addDoc(collectionRef, cliente);
+                showNotification("Cliente cadastrado com sucesso!", 'success');
+            }
+
+            resetarFormulario('Clientes');
+            await atualizarOpcoesClientes();
+            atualizarVisualizacao('Clientes');
+        } catch (error) {
+            showNotification(`Erro: ${error.message}`, 'error');
+        }
+    }
+
     async function salvarObra() {
         try {
             const sistemas = [];
@@ -343,10 +643,19 @@
                 }
             });
 
+            const clienteSelecionadoId = getInput('obra-cliente').value;
+            const clienteSelecionado = clientesCache.find(cliente => cliente.id === clienteSelecionadoId);
+            const telefoneCliente = clienteSelecionado ? (clienteSelecionado.telefone || '') : '';
+            const telefoneClienteInternacional = clienteSelecionado ? obterTelefoneInternacional(clienteSelecionado) : '';
+
             const obraData = {
                 descricao: getInput('desc-obra').value.trim(),
                 data_entrega_obra: formatarDataParaSalvar(getInput('data-entrega-obra').value),
-                sistemas: sistemas
+                sistemas: sistemas,
+                cliente_atribuido_id: clienteSelecionado ? clienteSelecionado.id : '',
+                cliente_atribuido_nome: clienteSelecionado ? clienteSelecionado.nome : '',
+                cliente_atribuido_telefone: telefoneCliente,
+                cliente_atribuido_telefone_internacional: telefoneClienteInternacional
             };
             if (!obraData.descricao || !obraData.data_entrega_obra) throw new Error("Preencha a descrição e a data de entrega da Obra.");
 
@@ -361,6 +670,9 @@
                 });
                 await addDoc(collectionRef, obraData);
                 showNotification("Obra cadastrada!", 'success');
+                if (clienteSelecionado) {
+                    await notificarCadastroObra(clienteSelecionado, obraData);
+                }
             }
             resetarFormulario('Obras');
             atualizarVisualizacao('Obras');
@@ -370,9 +682,24 @@
     }
 
     async function editarItem(tipo, id) {
-        const pageId = tipo === 'FichasEPI' ? 'fichas_epi' : 'obras';
-        const collectionName = tipo === 'FichasEPI' ? ARQUIVO_FICHA_EPI : ARQUIVO_OBRA;
-        
+        let pageId, collectionName;
+        switch (tipo) {
+            case 'FichasEPI':
+                pageId = 'fichas_epi';
+                collectionName = ARQUIVO_FICHA_EPI;
+                break;
+            case 'Obras':
+                pageId = 'obras';
+                collectionName = ARQUIVO_OBRA;
+                break;
+            case 'Clientes':
+                pageId = 'clientes';
+                collectionName = ARQUIVO_CLIENTE;
+                break;
+            default:
+                return;
+        }
+
         const docRef = doc(db, collectionName, id);
         const docSnap = await getDoc(docRef);
 
@@ -383,7 +710,7 @@
         
         showPage(pageId);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
+
         if (tipo === 'FichasEPI') {
             getInput('nome-colaborador').value = item.colaborador;
             
@@ -420,14 +747,35 @@
 
             getInput('ficha-epi-form-title').textContent = "Editando Ficha de EPI";
             getInput('btn-salvar-ficha-epi').textContent = "Salvar Alterações";
-        } else {
+        } else if (tipo === 'Obras') {
+            await atualizarOpcoesClientes();
             getInput('desc-obra').value = item.descricao;
             getInput('data-entrega-obra').value = formatarDataParaInput(item.data_entrega_obra);
+            if (item.cliente_atribuido_id) {
+                const selectCliente = getInput('obra-cliente');
+                const optionExiste = [...selectCliente.options].some(option => option.value === item.cliente_atribuido_id);
+                if (!optionExiste) {
+                    const option = document.createElement('option');
+                    option.value = item.cliente_atribuido_id;
+                    option.textContent = item.cliente_atribuido_nome || 'Cliente removido';
+                    selectCliente.appendChild(option);
+                }
+                selectCliente.value = item.cliente_atribuido_id;
+            }
             if (item.sistemas) {
                 item.sistemas.forEach(sistema => adicionarSistema(sistema));
             }
             getInput('obra-form-title').textContent = "Editando Obra";
             getInput('btn-salvar-obra').textContent = "Salvar Alterações";
+        } else if (tipo === 'Clientes') {
+            getInput('cliente-nome').value = item.nome || '';
+            const tipoDocumento = item.tipo_documento || inferirTipoDocumento(item.documento || '');
+            prepararCampoDocumento(tipoDocumento, item.documento || '');
+            getInput('cliente-telefone').value = item.telefone || '';
+            getInput('cliente-email').value = item.email || '';
+            getInput('cliente-endereco').value = item.endereco || '';
+            getInput('cliente-form-title').textContent = "Editando Cliente";
+            getInput('btn-salvar-cliente').textContent = "Salvar Alterações";
         }
     }
     
@@ -442,9 +790,17 @@
             getInput('btn-salvar-ficha-epi').textContent = "Cadastrar Ficha";
         } else if (tipo === 'Obras') {
             ['desc-obra', 'data-entrega-obra'].forEach(id => getInput(id).value = '');
+            const selectCliente = getInput('obra-cliente');
+            if (selectCliente) selectCliente.value = '';
             getInput('sistemas-list').innerHTML = '';
             getInput('obra-form-title').textContent = "Cadastro de Obra";
             getInput('btn-salvar-obra').textContent = "Cadastrar Obra";
+        } else if (tipo === 'Clientes') {
+            ['cliente-nome', 'cliente-documento', 'cliente-telefone', 'cliente-email'].forEach(id => getInput(id).value = '');
+            getInput('cliente-endereco').value = '';
+            prepararCampoDocumento('cpf', '');
+            getInput('cliente-form-title').textContent = "Ficha de Clientes";
+            getInput('btn-salvar-cliente').textContent = "Cadastrar Cliente";
         } else if (tipo === 'Documentos') {
             getInput('doc-select-obra').value = "";
             ['art-rrt-recebida', 'alvara-emitido', 'avcb-aprovado', 'habitese-emitido', 'projetos'].forEach(id => getInput(id).checked = false);
@@ -467,20 +823,26 @@
     async function atualizarVisualizacao(tipo) {
         let collectionName, viewId, buscaId, orderByField;
         switch(tipo) {
-            case 'FichasEPI': 
-                collectionName = ARQUIVO_FICHA_EPI; 
-                viewId = 'fichas_epi-cadastradas-view'; 
-                buscaId = 'busca-ficha-epi'; 
+            case 'FichasEPI':
+                collectionName = ARQUIVO_FICHA_EPI;
+                viewId = 'fichas_epi-cadastradas-view';
+                buscaId = 'busca-ficha-epi';
                 orderByField = 'colaborador';
                 break;
-            case 'Obras': 
-                collectionName = ARQUIVO_OBRA; 
-                viewId = 'obras-cadastradas-view'; 
-                buscaId = 'busca-obras'; 
+            case 'Obras':
+                collectionName = ARQUIVO_OBRA;
+                viewId = 'obras-cadastradas-view';
+                buscaId = 'busca-obras';
                 orderByField = 'descricao';
                 break;
-        }
-        
+            case 'Clientes':
+                collectionName = ARQUIVO_CLIENTE;
+                viewId = 'clientes-cadastrados-view';
+                buscaId = 'busca-clientes';
+                orderByField = 'nome';
+                break;
+            }
+
         const viewElement = getInput(viewId);
         const termoBusca = getInput(buscaId).value.toLowerCase();
         viewElement.innerHTML = '<p style="text-align: center;">Carregando...</p>';
@@ -492,7 +854,19 @@
             
             const dadosFiltrados = dados.filter(item => {
                 if (!termoBusca) return true;
-                return (item.colaborador || item.descricao).toLowerCase().includes(termoBusca);
+                const campos = [
+                    item.colaborador,
+                    item.descricao,
+                    item.nome,
+                    item.documento,
+                    formatarDocumentoParaExibicao(item.documento, item.tipo_documento),
+                    item.telefone,
+                    item.email,
+                    item.tipo_documento ? obterNomeTipoDocumento(item.tipo_documento) : null,
+                    item.cliente_atribuido_nome,
+                    item.cliente_atribuido_telefone
+                ].filter(Boolean).map(texto => texto.toLowerCase());
+                return campos.some(texto => texto.includes(termoBusca));
             });
 
             viewElement.innerHTML = '';
@@ -504,7 +878,8 @@
             dadosFiltrados.forEach(item => {
                 const itemContainer = document.createElement('div');
                 itemContainer.className = 'item-cadastrado';
-                let bodyContent = '', headerText = item.colaborador || item.descricao;
+                let bodyContent = '';
+                let headerText = item.colaborador || item.descricao || item.nome || 'Registro';
 
                 if (tipo === 'FichasEPI') {
                     bodyContent += '<div class="epi-details-grid">';
@@ -523,6 +898,9 @@
                     bodyContent += '</div>';
                 } else if (tipo === 'Obras') {
                     bodyContent += `<p><strong>Data entrega obra:</strong> ${item.data_entrega_obra || 'N/A'}</p>`;
+                    const clienteNome = item.cliente_atribuido_nome || 'Não atribuído';
+                    const clienteTelefone = item.cliente_atribuido_telefone ? ` (${item.cliente_atribuido_telefone})` : '';
+                    bodyContent += `<p><strong>Cliente atribuído:</strong> ${clienteNome}${clienteTelefone}</p>`;
                     if(item.sistemas && item.sistemas.length > 0){
                         bodyContent += `<div class="sistemas-view"><strong>Sistemas:</strong><ul>`;
                         item.sistemas.forEach(s => {
@@ -545,6 +923,13 @@
                         const linksAnexos = item.anexos.map(anexo => `<li><a href="${anexo.url}" target="_blank">${anexo.name}</a></li>`).join('');
                         bodyContent += `<div class="anexos-view"><strong>Arquivos Anexados:</strong><ul>${linksAnexos}</ul></div>`;
                     }
+                } else if (tipo === 'Clientes') {
+                    const tipoDocumento = item.tipo_documento || inferirTipoDocumento(item.documento || '');
+                    const documentoFormatado = formatarDocumentoParaExibicao(item.documento, tipoDocumento) || 'Não informado';
+                    bodyContent += `<p><strong>${obterNomeTipoDocumento(tipoDocumento)}:</strong> ${documentoFormatado}</p>`;
+                    bodyContent += `<p><strong>Telefone:</strong> ${item.telefone || 'Não informado'}</p>`;
+                    bodyContent += `<p><strong>E-mail:</strong> ${item.email || 'Não informado'}</p>`;
+                    bodyContent += `<p><strong>Endereço:</strong> ${item.endereco || 'Não informado'}</p>`;
                 }
                 
                 itemContainer.innerHTML = `
@@ -699,9 +1084,11 @@
         
         resetarFormulario('FichasEPI');
         resetarFormulario('Obras');
+        resetarFormulario('Clientes');
         resetarFormulario('Documentos');
 
         if (pageId === 'documentos') popularListaObras();
+        if (pageId === 'obras') atualizarOpcoesClientes();
         if (pageId === 'notificacoes') carregarNotificacoes();
 
         const sidebar = document.querySelector('.sidebar');
@@ -954,19 +1341,34 @@
     }
 
     async function abrirModalNotificacao(tipo, id) {
-        const collectionName = tipo === 'FichasEPI' ? ARQUIVO_FICHA_EPI : ARQUIVO_OBRA;
+        let collectionName;
+        switch (tipo) {
+            case 'FichasEPI':
+                collectionName = ARQUIVO_FICHA_EPI;
+                break;
+            case 'Obras':
+                collectionName = ARQUIVO_OBRA;
+                break;
+            case 'Clientes':
+                collectionName = ARQUIVO_CLIENTE;
+                break;
+            default:
+                return;
+        }
         const docRef = doc(db, collectionName, id);
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists()) return showNotification("Item não encontrado.", "error");
-        
+
         const item = docSnap.data();
-        const descricao = item.colaborador || item.descricao;
+        const descricao = item.colaborador || item.descricao || item.nome;
         let dataVencimento = "N/A";
 
         if(tipo === 'FichasEPI') {
             dataVencimento = "Verificar EPIs";
         } else if (tipo === 'Obras') {
             dataVencimento = "Verificar Sistemas";
+        } else if (tipo === 'Clientes') {
+            dataVencimento = item.telefone || item.email || "Atualizar dados do cliente";
         }
 
         getInput('modal-item-descricao').textContent = descricao;
@@ -1106,6 +1508,7 @@
     window.adicionarSistema = adicionarSistema;
     window.adicionarEpi = adicionarEpi;
     window.salvarFichaEpi = salvarFichaEpi;
+    window.salvarCliente = salvarCliente;
     window.toggleView = toggleView;
     window.atualizarVisualizacao = atualizarVisualizacao;
     window.salvarObra = salvarObra;
@@ -1124,6 +1527,21 @@
         getInput('data-entrega-obra').addEventListener('change', recalcularTodasAsDatas);
         document.querySelectorAll('.capitalize-input').forEach(input => input.addEventListener('input', capitalizeInput));
 
+        documentoTipoSelect = getInput('cliente-documento-tipo');
+        documentoInput = getInput('cliente-documento');
+
+        if (documentoTipoSelect && documentoInput) {
+            documentoTipoSelect.addEventListener('change', () => {
+                prepararCampoDocumento(documentoTipoSelect.value, documentoInput.value);
+            });
+
+            documentoInput.addEventListener('input', () => {
+                documentoInput.value = aplicarMascaraDocumento(documentoInput.value, documentoTipoSelect.value);
+            });
+
+            prepararCampoDocumento(documentoTipoSelect.value, documentoInput.value);
+        }
+
         const menuButton = getInput('menu-toggle-btn');
         const sidebar = document.querySelector('.sidebar');
         const overlay = document.querySelector('.overlay');
@@ -1140,9 +1558,10 @@
         getInput('notification-modal').addEventListener('click', (event) => {
             if (event.target === event.currentTarget) fecharModalNotificacao();
         });
-        
+
         criarListaDeEPIs();
         setupFileUpload();
+        atualizarOpcoesClientes();
         showPage('fichas_epi');
     };
 </script>
